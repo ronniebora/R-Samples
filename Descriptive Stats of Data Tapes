@@ -1,0 +1,86 @@
+Descriptive Stats of Data Tapes 
+Mostly used for Recon and QC of Large database tables, or data tape deliveries. 
+Rdev<-"Y:/boramoni/R/"
+setwd(Rdev)
+#Check
+getwd()
+
+cat("\014") #clears screen
+graphics.off() # clears old plots
+rm(list=ls()) 
+
+library(RODBC)
+library(dplyr)
+channel_madev <-  odbcConnect("OPINVREP_EXA", uid="MADEV", pwd="Ma$ev#2016", believeNRows=FALSE)
+odbcGetInfo(channel_madev)
+rawdata <- NULL;
+summary_data <- NULL;
+temp_data <- NULL;
+date <- Sys.Date();
+rawdata <- sqlQuery(channel_madev,paste("select * from MADEV.FITCH_STATIC",sep=""))
+
+# Exploratory anaysis dataframe 
+basic_summary = summary(rawdata)
+write.csv(basic_summary, file= paste("Basic_summary",date,".csv",sep="_"),na="",row.names=FALSE)
+
+#Script
+for (i in names(rawdata)[sapply(rawdata,is.numeric)]){ 
+  temp_name <- i
+  temp_col <- rawdata[,i]
+  
+  temp_co <- as.data.frame(rawdata[,i])
+  temp_co1 <- as.data.frame(rawdata[,c("AS_OF_DT","LOAN_NUM","INV_NUM","ENDING_UPB","RES_TYPE","STATUS_DAYS_DELQ","STATUS_SERVICING","LOANTYP","ORIG_UPB","SUB_SERVICING_FLAG","DEAL_NAME","MOD_DATE")])
+  final <- cbind.data.frame(temp_co,temp_co1)
+  names(final)[1] <- "var"
+  
+  if (i %in% c("PIPMTAMT","INT_RATE","SVC_FEE_RATE","BEG_PRIN_BAL","PRIN_SCH_AMT","ENDING_UPB","NET_SERVICE_FEE")) 
+  {
+    null <- as.data.frame(filter(final,is.na(var))) 
+    write.csv(null,file=paste("null",i,date,".csv",sep="_"),row.names=FALSE)
+  }
+  
+  if (i %in% c("INT_RATE","SVC_FEE_RATE","PRIN_SCH_AMT","SF_COLLECTED","FICO","REMIANING_TERM","NET_SERVICE_FEE","ARM_MARGIN"
+               ,"ARM_PERIODIC_IR_CAP","ARM_PERIODIC_IR_FLOOR","ARM_PERIODIC_PAY_CAP","ARM_PERIODIC_PAY_FLOOR","ARM_LIFE_CAP",
+               "ARM_LIFE_FLOOR","ARM_FREQ_RATE_CHANGE_MONTHS","ARM_FREQ_PYMT_CHANGE_MONTHS","ARM_FIRST_CAP","RECASTPRD",
+               "MV_ORIG_MID","MV_CURR_MID","ARM_FIRST_RESET","CURR_LTV","ORIG_LTV")) 
+  {
+    zeros <- as.data.frame(filter(final,var==0))
+    write.csv(zeros,file=paste("zeros",i,date,".csv",sep="_"),row.names=FALSE)
+  }
+  
+  if (i %in% c("PIPMTAMT","INT_RATE","SVC_FEE_RATE","INT_COLLECTED","SF_COLLECTED","REMIANING_TERM","NET_SERVICE_FEE","ACCRINTDUE")) 
+  {
+    negative <- as.data.frame(filter(final,var<0))
+    write.csv(negative,file=paste("negative",i,date,".csv",sep="_"),row.names=FALSE)
+  }
+  
+  temp_mean <- round(mean(temp_col,na.rm=TRUE),2)
+  temp_sd <- round(sd(temp_col,na.rm=TRUE),2)
+  temp_low <- min(temp_col,na.rm=TRUE)
+  temp_high <- max(temp_col,na.rm=TRUE)
+  temp_total_count <- length(temp_col)
+  temp_unique <- length(unique(temp_col))
+  temp_null <- sum(is.na(temp_col))
+  temp_zeros <- sum(temp_col==0,na.rm=TRUE)
+  temp_negative <- sum(temp_col<0,na.rm=TRUE)
+  temp_positive <- sum(temp_col>=0,na.rm=TRUE)
+  temp_25_perc <- as.vector(quantile(temp_col,c(.25),na.rm=TRUE))
+  temp_50_perc <- as.vector(quantile(temp_col,c(.50),na.rm=TRUE))
+  temp_75_perc <- as.vector(quantile(temp_col,c(.75),na.rm=TRUE))
+  
+  temp_data <- cbind.data.frame(variable=temp_name,mean=temp_mean,sd=temp_sd,
+                                low_val=temp_low,high_val=temp_high,
+                                total_records=temp_total_count,
+                                unique_records=temp_unique,
+                                perc_25=temp_25_perc,
+                                perc_50=temp_50_perc, 
+                                perc_75=temp_75_perc,
+                                Null_Values=temp_null,
+                                No_of_Zeros=temp_zeros,
+                                No_of_negative=temp_negative,
+                                No_of_positive=temp_positive)
+  
+  summary_data <- rbind.data.frame(summary_data,temp_data)  
+}
+
+write.csv(summary_data, file= paste("Descriptive_stats",date,".csv",sep="_"),na="",row.names=FALSE)
