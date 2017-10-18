@@ -1,0 +1,473 @@
+cat("\014")
+graphics.off()
+rm(list=ls())
+start_time<-Sys.time()
+getwd()
+setwd("D:/D Drive/Office Other/Dev/R/")
+options("scipen"=10)
+require(stats)
+
+# read data
+df<- read.csv("C:/Users/boramoni/Downloads/HR_comma_sep.csv", header=TRUE, sep=",")
+
+
+# data properties
+str(df)
+summary(df)
+
+colnames(df)
+colnames(df)[9] = "Department"
+df$left <- as.factor(df$left)
+df$promotion_last_5years <- as.factor(df$promotion_last_5years)
+head(df)
+df$Work_accident <-factor(df$Work_accident)
+df$left <-as.numeric(df$left)
+write.csv(df, file="C:/Users/boramoni/Downloads/HR_comma.csv")
+-- remove the extra columns, check the data and reupload
+df<- read.csv("C:/Users/boramoni/Downloads/HR_comma.csv", header=TRUE, sep=",")
+summary(df)
+str(df)
+
+
+#missing data check 
+
+colSums(sapply(df, is.na))
+
+library(needs)
+
+needs(tidyverse,
+      plotly,
+      rpart, 
+      rpart.plot,
+      viridis,
+      Metrics,
+      glmnet,
+      formattable)
+
+Employee_left=subset(df,df$left==1)
+m1=print(mean(Employee_left$satisfaction_level, na.rm=TRUE))
+
+# Exploratory Data Analysis
+
+library("tidyverse")
+library("ggplot2")
+library("ggthemes")
+library("scales")
+library(formattable)
+library("xlsx")
+library("openxlsx")
+
+#Standardization / Normalization and Scaling of continuous variables 
+#We will use min-max scaling for the below variables 
+
+number_project
+average_montly_hours
+time_spend_company
+
+library(dplyr)
+X<- df[3:5]
+mins= as.integer(summarise_all(X, min))
+rng = as.integer(summarise_all(X, function(x) diff(range(x))))
+X.scaled = data.frame(scale(X, center= mins, scale=rng))
+
+df[3:5]<-X.scaled[1:3]
+str(df)
+summary(df)
+
+#Categorical Variables plots
+
+p1<-ggplot(df, aes(factor(Department), fill = left))+  geom_bar(color='grey',position=position_dodge())+  labs(title="Department") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+p2<-ggplot(df, aes(factor(salary), fill = left))+  geom_bar(color='grey',position=position_dodge())+  labs(title="Compensation") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+p3<-ggplot(df, aes(factor(promotion_last_5years), fill = left))+  geom_bar(color='grey',position=position_dodge())+  labs(title="Promoted") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+
+#100% stacked chart with make more sense 
+p11<-ggplot(data=df, aes(x=factor(Department), fill=left)) +  geom_bar(position = "fill") +  labs(title="Department") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+p12<-ggplot(data=df, aes(x=factor(salary), fill=left)) +  geom_bar(position = "fill") +  labs(title="Compensation") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+p13<-ggplot(df, aes(factor(promotion_last_5years), fill = left))+  geom_bar(position= "fill")+  labs(title="Promoted") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))
+
+
+# Number of projects
+
+p111<-ggplot(df, aes(factor(number_project), fill = left ))+  geom_bar()+  labs(title="number_project") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+p112<-ggplot(df, aes(factor(number_project), fill = left ))+  geom_bar(position="fill")+  labs(title="number_project") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+#ggplot(df, aes(x=left, y=number_project, fill=left)) + geom_boxplot()+ scale_fill_manual("legend",values = c("1"="orange","0"="grey"))
+
+
+
+# Multivariate plots
+p4<-ggplot(df, aes(factor(promotion_last_5years), fill = left))+  geom_bar(position= "fill")+  labs(title="Promoted by Department") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey")) + facet_wrap(~Department)
+
+p5<-ggplot(df, aes(factor(promotion_last_5years), fill = left))+  geom_bar(position= "fill")+  labs(title="Promoted by Salary") +
+  scale_fill_manual("legend", values = c("1" = "orange", "0" = "grey"))  +facet_wrap(~salary)
+
+p6<-ggplot(df, aes(factor(number_project), fill = left))+ geom_bar(position = "fill") + labs (title = "Projects by Salary") + facet_wrap(~salary)
+p61<-ggplot(df, aes(factor(number_project), fill = left))+ geom_bar(position = "fill") + labs (title = "Projects by Department") + facet_wrap(~Department)
+
+pdf("Cat_var_by_goal.pdf")
+
+p1
+p2
+p3
+p4
+p5
+p11
+p12
+p13
+p111
+p112
+p6
+p61
+dev.off()
+
+
+# distribution for employees who left on continous variables 
+#satisfaction level
+
+a11<-ggplot(df, aes((satisfaction_level), fill = left ))+  geom_bar()+  labs(title="satisfaction_level") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+a12<-ggplot(df, aes(x=left, y=satisfaction_level, fill=left)) + geom_boxplot()+ scale_fill_manual("legend",values = c("1"="orange","0"="grey"))
+
+a13<-ggplot(df, aes((satisfaction_level), fill = left ))+  geom_bar(position="fill")+  labs(title="satisfaction_level") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black")) + facet_wrap(~Department)
+a14<-ggplot(df, aes((satisfaction_level), fill = left ))+  geom_bar()+  labs(title="satisfaction_level") +
+  scale_fill_manual("legend", values = c("1" = "#FF7F50", "0" = "#C1CDCD")) + facet_wrap(~salary)
+a15<-ggplot(df, aes((satisfaction_level), fill = left ))+  geom_bar(position = "fill")+  labs(title="satisfaction_level") +
+  scale_fill_manual("legend", values = c("1" = "#FF7F50", "0" = "#C1CDCD")) + facet_wrap(~salary)
+
+# last eveluation / performance score
+a16<-ggplot(df, aes((last_evaluation), fill = left ))+  geom_bar()+  labs(title="last_evaluation") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+a17<-ggplot(df, aes((last_evaluation), fill = left ))+  geom_bar(position="fill")+  labs(title="last_evaluation") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+a18<-ggplot(df, aes(x=left, y=last_evaluation, fill=left)) + geom_boxplot()+ scale_fill_manual("legend",values = c("1"="orange","0"="grey"))
+
+a19<-ggplot(df, aes((last_evaluation), fill = left ))+  geom_bar(position="fill")+  labs(title="last_evaluation") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black")) + facet_wrap(~Department)
+a20<-ggplot(df, aes((last_evaluation), fill = left ))+  geom_bar()+  labs(title="last_evaluation") +
+  scale_fill_manual("legend", values = c("1" = "#FF7F50", "0" = "#C1CDCD")) + facet_wrap(~salary)
+a21<-ggplot(df, aes((last_evaluation), fill = left ))+  geom_bar(position = "fill")+  labs(title="last_evaluation") +
+  scale_fill_manual("legend", values = c("1" = "#FF7F50", "0" = "#C1CDCD")) + facet_wrap(~salary)
+
+# Satisfaction and Score
+a22<-  ggplot(df, aes(x=last_evaluation, y=satisfaction_level )) +     geom_point(alpha=1/2) +
+    xlab('Last Evaluation') + ylab('Satisfaction Level') + 
+    theme(legend.position="bottom") + ggtitle('Evaluation Score vs. Satisfaction Level') + 
+    geom_smooth(method=lm, se=TRUE)  
+  
+a23<-  ggplot(df, aes(x=last_evaluation, y=satisfaction_level , color=left)) + 
+    geom_point(alpha=1/4) +
+    scale_color_manual("legend", values = c("1" = "#FF7F50", "0" = "#8B8878")) +
+    xlab('Last Evaluation') + ylab('Satisfaction Level') + 
+    theme(legend.position="bottom") + ggtitle('Evaluation Score vs. Satisfaction Level by Itteration')
+
+  # average hours
+
+a24<- ggplot(df, aes((average_montly_hours), fill = left ))+  geom_bar()+  labs(title="average_montly_hours") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+a25<- ggplot(df, aes(average_montly_hours, fill = left ))+  geom_bar(position= "fill")+  labs(title="average_montly_hours") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+a26<- ggplot(df, aes(x=left, y=average_montly_hours, fill=left)) + geom_boxplot()+ scale_fill_manual("legend",values = c("1"="orange","0"="grey")) + 
+  facet_wrap(~number_project)
+
+# Tenure
+a27<- ggplot(df, aes(time_spend_company, fill = left )) +
+#  geom_bar()
+  geom_bar(position="fill") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))
+  
+a28<-ggplot(df, aes(x=left, y=time_spend_company, fill=left)) + geom_boxplot()+ scale_fill_manual("legend",values = c("1"="orange","0"="grey"))
+
+a29<-ggplot(df, aes(time_spend_company, fill = left )) +
+  #  geom_bar()
+  geom_bar(position="fill") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))+ facet_wrap(~salary)
+
+a30<-ggplot(df, aes(time_spend_company, fill = left )) +
+  #  geom_bar()
+  geom_bar(position="fill") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))+ facet_wrap(~Department)
+
+a31<-ggplot(df, aes(time_spend_company, fill = left )) +
+  #  geom_bar()
+  geom_bar(position="fill") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))+ facet_wrap(~number_project)
+
+a32<-ggplot(df, aes((average_montly_hours), fill = left ))+  geom_bar(position= "fill")+  labs(title="Working hours by Tenure to Itterations") +
+  scale_fill_manual("legend", values = c("1" = "dark red", "0" = "black"))+facet_wrap(~time_spend_company)
+
+
+pdf("Cont_var_by_event.pdf")
+a11
+a12
+a13
+a14
+a15
+a16
+a17
+a18
+a19
+a20
+a21
+a22
+a23
+a24
+a25
+a26
+a27
+a28
+a29
+a30
+a31
+a32
+dev.off()
+
+
+## Create a new workbook
+wb <- createWorkbook()
+
+## Add a worksheet
+addWorksheet(wb, "Bar plots", gridLines = FALSE) 
+addWorksheet(wb, "100% Stacked plots", gridLines = FALSE) 
+addWorksheet(wb, "Multivariate", gridLines = FALSE) 
+addWorksheet(wb, "Continous Variables", gridLines = FALSE) 
+
+
+## Insert currently displayed plot to sheet 1, row 1, column 1
+print(p1) #plot needs to be showing
+insertPlot(wb, "Bar plots", xy = c("B", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p2)
+insertPlot(wb, "Bar plots", xy = c("J", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p3)
+insertPlot(wb, "Bar plots", xy = c("R", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p11) #plot needs to be showing
+insertPlot(wb, "100% Stacked plots", xy = c("B", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p12)
+insertPlot(wb, "100% Stacked plots", xy = c("J", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p13)
+insertPlot(wb, "100% Stacked plots", xy = c("R", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p4)
+insertPlot(wb, "Multivariate", xy = c("B", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p5)
+insertPlot(wb, "Multivariate", xy = c("J", 2), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p6)
+insertPlot(wb, "Multivariate", xy = c("B", 20), width = 16, height = 8,  fileType = "png", units = "cm")
+
+print(p61)
+insertPlot(wb, "Multivariate", xy = c("J", 20), width = 16, height = 8,  fileType = "png", units = "cm")
+
+
+
+print(a11)
+insertPlot(wb, "Continous Variables", xy = c("B", 2), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a12)
+insertPlot(wb, "Continous Variables", xy = c("J", 2), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a13)
+insertPlot(wb, "Continous Variables", xy = c("Q", 2), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a14)
+insertPlot(wb, "Continous Variables", xy = c("B", 20), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a15)
+insertPlot(wb, "Continous Variables", xy = c("J", 20), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a16)
+insertPlot(wb, "Continous Variables", xy = c("Q", 20), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a17)
+insertPlot(wb, "Continous Variables", xy = c("B", 40), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a18)
+insertPlot(wb, "Continous Variables", xy = c("J", 40), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a19)
+insertPlot(wb, "Continous Variables", xy = c("Q", 40), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a20)
+insertPlot(wb, "Continous Variables", xy = c("B", 60), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a21)
+insertPlot(wb, "Continous Variables", xy = c("J", 60), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a22)
+insertPlot(wb, "Continous Variables", xy = c("Q", 60), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a23)
+insertPlot(wb, "Continous Variables", xy = c("B", 80), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a24)
+insertPlot(wb, "Continous Variables", xy = c("J", 80), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a25)
+insertPlot(wb, "Continous Variables", xy = c("Q", 80), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a26)
+insertPlot(wb, "Continous Variables", xy = c("B", 100), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a27)
+insertPlot(wb, "Continous Variables", xy = c("J", 100), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a28)
+insertPlot(wb, "Continous Variables", xy = c("Q", 100), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a29)
+insertPlot(wb, "Continous Variables", xy = c("B", 120), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a30)
+insertPlot(wb, "Continous Variables", xy = c("J", 120), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a31)
+insertPlot(wb, "Continous Variables", xy = c("Q", 120), width = 12, height = 8,  fileType = "png", units = "cm")
+print(a32)
+insertPlot(wb, "Continous Variables", xy = c("X", 120), width = 12, height = 8,  fileType = "png", units = "cm")
+
+
+## Save workbook
+saveWorkbook(wb, "EDA_Plots.xlsx", overwrite = TRUE)
+
+
+# Basic Statistics and Tests
+
+
+# Corrrealtion Test
+library(corrplot)
+str(df)
+HR_correlation <- df %>% select(satisfaction_level:time_spend_company)
+M <- cor(df)
+corrplot(M, method="circle")
+
+
+# Chi sq 
+
+
+# ANOVA
+
+
+# PCA
+
+# WOE and IV
+#install.packages("Information")
+library(Information)
+IV <- create_infotables(data=df, y="left", bins=10, parallel=FALSE)
+IV
+IV_Value = data.frame(IV$Summary)
+IV_Value
+
+#info tables for each variables sorted by Information values
+plot_infotables(IV, IV$Summary$Variable[1:8], same_scale=FALSE)
+
+
+
+As per the monotonic trend of WOE plots variable under consideration are :
+Work_accident
+time_spend_company
+satisfaction_level
+
+
+As per  Information value the variables with predictive powers are :
+--medium and strong
+salary
+Work_accident
+-suspicious
+last_evaluation
+time_spend_company
+satisfaction_level
+
+0.1 to 0.3 	Medium predictive Power
+0.3 to 0.5 	Strong predictive Power
+>0.5 	Suspicious Predictive Power
+
+
+From these two we can predict the variables to be considered are only 
+Work_accident
+time_spend_company
+satisfaction_level
+
+
+# Random Forest 
+
+
+
+
+# Machine learning 
+
+# modelling 
+library(caTools)
+vars<-c("Work_accident", "time_spend_company", "satisfaction_level", "left")
+df1<-df[vars]
+str(df1)
+split=sample.split(df$left,SplitRatio = 0.8)
+train=subset(df1,split==TRUE)
+test=subset(df1,split==FALSE)
+table(train$left)
+table(test$left)
+
+# classification trainig - Logistic 
+set.seed(159)
+hr_lr_modal=glm(as.factor(train$left)~.,data=train, family = 'binomial',maxit=100)
+summary(hr_lr_modal)
+
+# test data set
+prediction=predict(hr_lr_modal,newdata = test)
+
+#converting probabilities to 1 or 0 
+pred1=ifelse(predict(hr_lr_modal, newdata = test, type='response')>.5,1,0)
+table(as.factor(test$left),pred1)
+
+# performance matrix | confusion matrix 
+library(caret)
+confusionMatrix(data=pred1, reference = test$left)
+
+#ROC
+glm_response_scores <- predict(hr_lr_modal, test, type="response")
+
+library(pROC)
+plot(roc(test$left, glm_response_scores, direction="<"),
+     col="red", lwd=1, main="ROC Curve")
+
+AUC=auc(test$left,glm_response_scores)
+print(AUC)
+
+
+#Random Forest 
+library(rpart)
+install.packages("rpart.plot")
+library("rpart.plot")
+data <- df1
+n <- nrow(data)
+idx <- sample(n, n * .66)
+
+data %>% 
+  mutate(
+    left = factor(left, labels = c("Remain", "Left")),
+    salary = ordered(salary, c("low", "medium", "high")),
+    promotion_last_5years = factor(promotion_last_5years, labels = c("Not Promoted", "Promoted"))
+  ) -> 
+  d
+
+train <- d[idx, ]
+test <- d[-idx, ]
+
+tree <- rpart(promotion_last_5years ~ ., data = train)
+res <- predict(tree, test)
+auc(as.numeric(test$promotion_last_5years) - 1, res[, 2])
+# The AUC value is very high - to avoid overfitting
+rpart.plot(tree, type = 2, fallen.leaves = F, cex = 1, extra = 2)
+
+
+Findings 
+If you're successful and overworked, you leave.
+If you're unhappy and overworked, you leave.
+If you're unhappy and underworked, you leave.
+If you've been at the company for more than 6.5 years, you're more likely to be happy working longer hours.
+
+Let's limit the variables that go into the model to satisfaction_level, last_evaluatoin, and average_monthly_hours.
+
+tree <- rpart(left ~ satisfaction_level + last_evaluation + average_montly_hours + number_project, data = train)
+res <- predict(tree, test)
+auc(as.numeric(test$left) - 1, res[, 2])
+rpart.plot(tree, type = 2, fallen.leaves = F, cex = 1, extra = 2)
+
