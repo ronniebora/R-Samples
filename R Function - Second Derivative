@@ -1,0 +1,10 @@
+#Calculate the likelihood function given output(y) and pi
+calculatell <- function(y,pi) {
+  ll <- 1
+  ll_unit <- 1:length(y)
+  for (i in 1:length(y)){
+    ll_unit[i] <- ifelse(y[i] == 1,pi[i],1-pi[i])
+    ll = ll_unit[i]*ll
+  }
+  return(ll)
+}
