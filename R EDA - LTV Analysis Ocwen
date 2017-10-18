@@ -1,0 +1,177 @@
+
+cat("\014") # clears screen
+graphics.off() # clears old plots
+rm(list=ls()) # Remove all the rogue objects
+start_time <- Sys.time() # Variable to store the start time
+setwd("D:/D Drive/Bora, Moni M/Office_Daily/Projects/LTV Analysis")
+
+options("scipen" = 10) # make sure all the plot have no exponential mark -> show real values
+require(stats)
+
+if(!require('RODBC')) {install.packages("RODBC"); library('RODBC')}
+library('ggplot2') # visualization
+library('ggthemes') # visualization
+library('scales') # visualization
+library('dplyr') # data manipulation
+
+
+channel<- odbcConnect("OPINVREP", uid="MADEV", pwd="Ma$ev#2016", believeNRows=FALSE)
+# Check that connection is working (Optional)
+odbcGetInfo(channel)
+# Find out what tables are available (Optional)
+#Tables <- sqlTables(channel, schema="SCHEMA")
+#df <- sqlQuery(channel, " SELECT * FROM ima_adhoc_dq_mkt_value0")
+# save the file in CSV or TEXT format in PC
+#write.table(df, "D:/D Drive/Bora, Moni M/Office_Daily/Projects/Loan_default_SL/data.txt", sep="\t")
+#write.csv(df, "D:/D Drive/Bora, Moni M/Office_Daily/Projects/LTV Analysis/data.csv", sep=",")
+#read back the data from CSV file instead of database
+#df<- read.table("D:/D Drive/Bora, Moni M/Office_Daily/Projects/Loan_default_SL/data.txt", header = TRUE, sep="\t")
+df <- read.csv("D:/D Drive/Bora, Moni M/Office_Daily/Projects/LTV Analysis/data.csv", sep=",")
+#Verify the data
+
+head(df)
+str(df)
+
+# Make variables factors into factors ( before proceeding final data correction)
+factor_vars <- c('LOANSTAT','INSUREBY','LOANTRM','STRE','STATE','MOD_FLAG','LOANTYP')
+
+df[factor_vars] <- lapply(df[factor_vars], function(x) as.factor(x))
+
+# Make variables into0 dates ( before proceeding final data correction)
+
+date_vars <- c('AS_OF_DT', 'CLOSINGDT', 'MID_MV_DT')
+
+df[date_vars] <- lapply(df[date_vars], function(x) as.Date(x))
+
+
+# new variables for the Risk categories
+df$CURR_LTV_RSK <- as.factor(ifelse(df$CURR_LTV <= .80, "SAFE"
+                                    , ifelse((df$CURR_LTV >= 0.81 & df$CURR_LTV <=1 ), "R1"
+                                             , ifelse((df$CURR_LTV >= 0.101 & df$CURR_LTV <= .300 ), "R2"
+                                                      , "R3"
+                                                      )
+                                             )
+                                    ))
+
+df$ORIG_LTV_RSK <- as.factor(ifelse(df$ORIG_LTV <= .80, "SAFE"
+                                    , ifelse((df$ORIG_LTV >= 0.81 & df$ORIG_LTV <=1 ), "R1"
+                                             , ifelse((df$ORIG_LTV >= 0.101 & df$ORIG_LTV <= .300 ), "R2"
+                                                      , "R3"
+                                             )
+                                    )
+))
+
+
+#Histogram to check validity of statistical test on Orig LTV by the Four categories , and what mathematical form of the valriable to be used.
+p11<-qplot(data = subset(df, df$CURR_LTV_RSK == "SAFE"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p21<-qplot(data = subset(df, df$CURR_LTV_RSK == "R1"), x = CURR_LTV, binwidth = 0.025, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p31<-qplot(data = subset(df, df$CURR_LTV_RSK == "R2"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p41<-qplot(data = subset(df, df$CURR_LTV_RSK == "R3"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+
+#Histogram to check validity of statistical test on CURR LTV by the Four categories , and what mathematical form of the valriable to be used.
+p12<-qplot(data = subset(df, df$CURR_LTV_RSK == "SAFE"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p22<-qplot(data = subset(df, df$CURR_LTV_RSK == "R1"), x = CURR_LTV, binwidth = 0.025, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p32<-qplot(data = subset(df, df$CURR_LTV_RSK == "R2"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+p42<-qplot(data = subset(df, df$CURR_LTV_RSK == "R3"), x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")
+
+p11
+p21
+p31
+p41
+p12
+p22
+p32
+p42
+
+#qplot(data = df, x = CURR_LTV, binwidth = 0.05, geom = "histogram", ylab = " Count of loans", xlab = "Current LTV")+ facet_wrap(~df$CURR_LTV_RSK)
+
+# creation of single variabnle Delta LTV which wil measure the change in orig ltv and current ltv. 
+
+df$delta_ltv <- (df$CURR_LTV/df$ORIG_LTV)
+df$delta_ltv_cat <- as.factor(ifelse(df$delta_ltv >= 1, "Bad", "Good"))
+
+
+# The loans tagged as bad are loans which have a Change in LTV more than 1 or the current LTV is equal or more than Original LTV
+# This can be either due to Current Market value < Orig Appraisal Value 
+# Or Current UPB > Orig UPB
+# We will categories these two variable where "worse" is Current Mkt value < Orig Appraisal Value and Current UPB > Orig UPB
+
+df$delta_mktval <- (df$ASISMIDMKTVAL/df$ORGAPPRVAL) # case when current market value is < original market value then it is bad
+df$delta_mktval_cat <- as.factor(ifelse(df$delta_mktval < 1, "worse", "good"))
+df$delta_upb <- (df$CURPRINBAL/df$ORGPRINBAL) # case when cur prin bal > = prig upb then its bad . 
+df$delta_upb_cat <- as.factor(ifelse(df$delta_upb >= 1, "worse", "good"))
+
+# Insurance Categories
+
+
+summary(df$MID_MV_DT)
+# there are issues with the current market value dates 
+
+df1<- subset(df, df$delta_ltv_cat == "Bad")
+
+# Data Analysis 
+
+# Data of Current LTV , ( in Current LTV Categories ) by the Delta Current Risk Categories
+
+ggplot(df, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = delta_ltv_cat), position = "dodge")
+
+# Data Distribution of Current LTV categories. And same over State, Insurance, Loantype
+
+ggplot(df, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge")
+ggplot(df, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~LOANTYP)
+ggplot(df, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~STATE)
+ggplot(df, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~INSUREBY)
+
+# Data Distribution of Current LTV categories, with Delta Curr LTV Categori = BAD ( loans which have Current LTV more than Original LTV ) . And same over State, Insurance, Loantype
+
+ggplot(df1, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge")
+ggplot(df1, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~LOANTYP)
+ggplot(df1, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~STATE)
+ggplot(df1, aes(CURR_LTV_RSK, ..count..)) + geom_bar(aes(fill = CURR_LTV_RSK), position = "dodge") + facet_wrap(~INSUREBY)
+
+
+#scatter plot of orig ltv and curr ltv for the loans with delta ltv >=1
+qplot(data = df, x= ORIG_LTV, y = CURR_LTV)+geom_smooth(method="lm", aes(fill = delta_ltv_cat )) 
+qplot(data = df1, x= ORIG_LTV, y = CURR_LTV)+geom_smooth(method="lm")
+# either becasue curr mkt value < orig apr val or curr_upb > orig upb
+qplot(data = df1, x= ORGAPPRVAL, y = ASISMIDMKTVAL)+geom_smooth(method="lm")
+qplot(data = df1, x= ORGPRINBAL, y = CURPRINBAL)+geom_smooth(method="lm")
+
+
+
+str(df1)
+
+------------- # Rough ---
+
+plotFucnUni(df,19,22,0.05, df$ORIG_LTV_RSK)
+plotFucnUni(df,20,0.05, df$CURR_LTV_RSK)
+
+
+plotFucnUni <- function(df, i,j, bn, var)
+{
+  df1 <- subset(df, df[[j]] == var)
+  q11<-median(df1[[i]])
+  q12<-mean(df1[[i]])
+  sd <- sd(df1[[i]]) 
+  max <- max(df1[[i]])
+  min <- min(df1[[i]])
+  
+  q<- paste("Median = ", q11 ," | Mean = ", q12 ," | S.D =", sd, " | Max =", max ," | Min =", min)
+  p<-qplot(x=df[[i]], data = df1, binwidth = bn, geom="histogram", ylab = " Count of loans", xlab = colnames(df[i])) + 
+    geom_vline(xintercept = q11 , colour="green", linetype = "longdash") + 
+    geom_vline(xintercept = q12 , colour="red", linetype = "longdash") +
+    labs(title = paste("Descriptive Statistics for : ",colnames(df[i]) ) , subtitle = q)+
+  return(p)
+  #return(d)
+}
+
+
+
+
+df1 < -subset(df, !is.na(df$ORGPRINBAL))
+!is.na(df$ORGPRINBAL)
+
+19--ORIG_LTV
+20--CURR_LTV
+21 - CURR_LTV_RSK
+22 - ORIG_LTV_RSK
