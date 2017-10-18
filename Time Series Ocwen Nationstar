@@ -1,0 +1,82 @@
+ocn_url <- "http://real-chart.finance.yahoo.com/table.csv?s=OCN&a=07&b=24&c=2010&d=07&e=24&f=2015&g=d&ignore=.csv"
+nsm_url <- "http://real-chart.finance.yahoo.com/table.csv?s=NSM&a=07&b=24&c=2010&d=07&e=24&f=2015&g=d&ignore=.csv"
+ocn_url <- "http://download.finance.yahoo.com/d/quotes.csv?s=OCN&f=sl1d1t1c1ohgv&e=.csv"
+#this is a function in a R file "Yahoo.Read". Call function and read the values
+ocn_rates <- yahoo.read(ocn_url)
+nsm_rates <- yahoo.read(nsm_url)
+#Check you r data
+tail(ocn_rates)# dates and values
+class(ocn_rates)#data frame
+summary(ocn_rates)
+str(ocn_rates)
+summary(nsm_rates)
+str(nsm_rates)
+str(ocn_rates$Date)# date in not in date format
+#convert the dates in the data frame
+ocn_rates$Date <- as.Date(ocn_rates$Date, "%Y-%m-%d")
+nsm_rates$Date <- as.Date(nsm_rates$Date, "%Y-%m-%d")
+str(ocn_rates$Date)# date in not in date format
+#Data is ready now to plot
+
+##GGplot code
+#Only Ocwen
+library(ggplot2)
+g = ggplot(ocn_rates,aes(Date, Close))
+g = g + geom_line(aes(color="OCN")) 
+g = g + labs(color="Legend") + ggtitle("Closing Stock Prices of OCWEN")
+g = g + theme(plot.title = element_text(lineheight=.7, face="bold"))
+g
+
+
+#Combines Plots for Both Ocwen and NSM
+cm_plt <- ggplot(ocn_rates,aes(Date,Close)) 
+cm_plt <- cm_plt + geom_line(aes(color="ocn")) 
+cm_plt <- cm_plt + geom_line(data=nsm_rates,aes(color="nsm")) 
+cm_plt <- cm_plt + labs(color="Legend") 
+cm_plt <- cm_plt + scale_colour_manual("", breaks = c("ocn", "nsm"), values = c("blue", "brown")) 
+cm_plt <- cm_plt + ggtitle("Closing Stock Prices: Ocwen Financial Corp & NationStar Mortgage") 
+cm_plt
+cm_plt + theme(plot.title = element_text(lineheight=.7, face="bold"))
+cm_plt
+
+## dygraphs Plots
+# Plot with the htmlwidget dygraphs
+# dygraph() needs xts time series objects
+library(xts)
+library(dygraphs)
+#create or test for an Time series object | xts is a Constructor function for creating an Extensible Time Series Object, used to create an xts object from raw data inputs
+ocn_xts<- xts(ocn_rates$Close,order.by=ocn_rates$Date,frequency=365) # considering the freq to be 365
+nsm_xts<- xts(nsm_rates$Close,order.by=nsm_rates$Date,frequency=365) # considering the freq to be 365
+stocks <- cbind(ocn_xts,nsm_xts)
+head(stocks)
+
+## dygraphs | we will plot the same using the Pipeline commands since the data sets needs to be rolled like GGplot
+# This will give an out put like most Stock trading websites
+dygraph(stocks,ylab="Close", main="Ocwen and Nationstar Closing Stock Prices") %>%
+  dySeries("..1",label="OCN") %>%
+  dySeries("..2",label="NSM") %>%
+  dyOptions(colors = c("blue","brown")) %>%
+  dyRangeSelector()
+)
+
+
+## Forecasting
+
+#Check if the data is for holidays and Weekends
+ocn_rates[1:10,]
+head(ocn_rates$Date, 20)
+#we will go ahead and pool the data into year by values , hence tabulate it
+years <- format(ocn_rates$Date, "%Y")
+tab <- table(years)
+tab # gives count of occurances for each year, which is logically the number of working dates the stock closing value is captured
+## Average number of days per year after removing 2010 part
+mean(tab[2:(length(tab))])# this gives the MEAN which is the WINDOW Size . 233.6 days per year
+
+arima_ocn <- forecastArima(ocn_rates, n.ahead = 90)
+arima_nsm <- forecastArima(nsm_rates, n.ahead = 90)
+forecast_arima_ocn <- plotForecast(arima_ocn, title = "Ocwen Stock forecasting with ARIMA")
+forecast_arima_nsm <- plotForecast(arima_nsm, title = "Nationstar Stock forecasting with ARIMA")
+forecast_arima_ocn
+ocn_stl <- forecastStl(ocn_rates, n.ahead = 90)
+head(ocn_stl)
+plotForecast(ocn_stl, title = "Ocwen Stock Rates forecasting with STL")
